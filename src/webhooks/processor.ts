@@ -4,6 +4,7 @@ import { query } from '../db';
 import logger from '../utils/logger';
 import config from '../config';
 import { TransactionEvent, Webhook, WebhookDelivery, WebhookDeliveryStatus } from '../types';
+import { broadcastWebhookActivity } from '../websocket/server';
 
 /**
  * Process a transaction event by sending it to all matching webhooks
@@ -93,6 +94,9 @@ export const queueWebhookDelivery = async (webhook: Webhook, event: TransactionE
  * Deliver a webhook to its endpoint
  */
 export const deliverWebhook = async (deliveryId: string): Promise<void> => {
+  let webhookId: string | undefined;
+  let eventId: string | undefined;
+
   try {
     // Get delivery details
     const deliveryResult = await query(
@@ -111,6 +115,10 @@ export const deliverWebhook = async (deliveryId: string): Promise<void> => {
     
     const delivery = deliveryResult.rows[0];
     
+    // Store IDs for potential use in the final catch block
+    webhookId = delivery.webhook_id;
+    eventId = delivery.event_id;
+
     // Update status to in progress
     await query(
       'UPDATE webhook_deliveries SET status = $1, attempt_count = attempt_count + 1 WHERE id = $2',
@@ -154,6 +162,17 @@ export const deliverWebhook = async (deliveryId: string): Promise<void> => {
       Object.assign(headers, delivery.headers);
     }
     
+    // Broadcast the attempt over WebSocket
+    broadcastWebhookActivity({
+      type: 'delivery_attempt',
+      deliveryId,
+      webhookId: delivery.webhook_id,
+      eventId: delivery.event_id,
+      eventType: delivery.event_type,
+      url: delivery.url,
+      attempt: delivery.attempt_count + 1 // This is the current attempt
+    });
+
     try {
       // Send the webhook
       const response = await axios.post(delivery.url, payload, { headers, timeout: 10000 });
@@ -167,6 +186,17 @@ export const deliverWebhook = async (deliveryId: string): Promise<void> => {
       );
       
       logger.info(`Webhook delivery ${deliveryId} succeeded with status ${response.status}`);
+
+      // Broadcast success over WebSocket
+      broadcastWebhookActivity({
+        type: 'delivery_success',
+        deliveryId,
+        webhookId: delivery.webhook_id,
+        eventId: delivery.event_id,
+        statusCode: response.status,
+        response: response.data
+      });
+
     } catch (error) {
       // Type the error properly to fix TS18046 errors
       const axiosError = error as { response?: { status: number, data: any }, message?: string };
@@ -200,18 +230,42 @@ export const deliverWebhook = async (deliveryId: string): Promise<void> => {
         );
         
         logger.error(`Webhook delivery ${deliveryId} failed after ${delivery.attempt_count} attempts`);
+
+        // Broadcast final failure over WebSocket
+        broadcastWebhookActivity({
+          type: 'delivery_failed',
+          deliveryId,
+          webhookId: delivery.webhook_id,
+          eventId: delivery.event_id,
+          statusCode: statusCode,
+          response: axiosError.response?.data,
+          reason: `Max retries (${delivery.attempt_count}) exceeded`
+        });
       }
     }
   } catch (error) {
     logger.error(`Error processing webhook delivery ${deliveryId}:`, error);
     
     // Update delivery status to failed
-    await query(
+    // Note: We are not awaiting this query to avoid potential unhandled promise rejections
+    // if the broadcast below fails or if the database connection is down.
+    query(
       `UPDATE webhook_deliveries 
        SET status = $1, response_body = $2, completed_at = CURRENT_TIMESTAMP 
        WHERE id = $3`,
       [WebhookDeliveryStatus.FAILED, (error as Error).message || 'Unknown error', deliveryId]
-    );
+    ).catch(dbError => {
+      logger.error(`Failed to update delivery ${deliveryId} status to FAILED:`, dbError);
+    });
+
+    // Broadcast critical failure over WebSocket
+    broadcastWebhookActivity({
+      type: 'delivery_error',
+      deliveryId,
+      webhookId: webhookId, // Use potentially undefined ID
+      eventId: eventId,     // Use potentially undefined ID
+      error: (error as Error).message || 'Unknown processing error'
+    });
   }
 };
 

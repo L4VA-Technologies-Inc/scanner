@@ -111,6 +111,23 @@ This change ensures that PostgreSQL can properly compare the event_types column 
   - Used the same placeholder hashing method (`placeholder-hash-` + apiKey) in both places
   - For a production application, this should be replaced with a proper cryptographic hashing method in both places
 
+#### Issue: Incorrect React Import in AuthContext
+- **File:** `webapp/src/context/AuthContext.tsx`
+- **Mistake:** Initially imported `react` instead of `React`, causing type errors with `React.FC`.
+- **Correction:** Changed the import from `import react, ...` back to `import React, ...`.
+- **Date:** 2025-04-02
+
+#### Issue: Swagger JSDoc Placement for Healthcheck Endpoint
+- **Date:** 2025-04-02
+- **Mistake:** Attempted to add Swagger JSDoc comments for the `/health` endpoint directly in `src/index.ts`.
+- **Problem:** The Swagger configuration (`src/api/swagger.ts`) was set up to only scan files within the `src/api/routes/` directory (`apis: ['./src/api/routes/*.ts']`). Therefore, JSDoc comments in `src/index.ts` were ignored.
+- **Correction:**
+  1. Created a new route file: `src/api/routes/health.ts`.
+  2. Moved the `/health` route definition and its JSDoc comments from `src/index.ts` to `src/api/routes/health.ts`.
+  3. Updated `src/index.ts` to import and mount the new `healthRoutes` under the `/health` path.
+  4. Ensured `spec.md` correctly documented the `/health` endpoint.
+- **Lesson:** Always verify the Swagger configuration (`apis` path) to ensure JSDoc comments are placed in files that will be scanned for documentation generation. Route definitions intended for Swagger documentation should reside within the configured paths.
+
 ### Database Schema Issues 
 
 ### API Implementation Issues 

@@ -26,7 +26,35 @@ const swaggerOptions = {
         description: 'Development server'
       }
     ],
+    tags: [
+      { name: 'Auth', description: 'Authentication endpoints' },
+      { name: 'Webhooks', description: 'Webhook configuration management' },
+      { name: 'Blockchain', description: 'Querying blockchain data' },
+      { name: 'Deliveries', description: 'Webhook delivery history' },
+      { name: 'Health', description: 'Service health checks' }
+    ],
     components: {
+      schemas: {
+        WebhookDelivery: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid', description: 'Unique delivery ID' },
+            webhook_id: { type: 'string', format: 'uuid', description: 'ID of the associated webhook' },
+            event_id: { type: 'string', format: 'uuid', description: 'ID of the associated event' },
+            status: { 
+              type: 'string', 
+              enum: ['PENDING', 'IN_PROGRESS', 'SUCCEEDED', 'RETRYING', 'FAILED', 'MAX_RETRIES_EXCEEDED'], 
+              description: 'Current status of the delivery' 
+            },
+            attempt_count: { type: 'integer', description: 'Number of delivery attempts made' },
+            status_code: { type: 'integer', nullable: true, description: 'HTTP status code received from the target URL (if applicable)' },
+            response_body: { type: 'string', nullable: true, description: 'Response body received from the target URL (if applicable, might be truncated or JSON stringified)' },
+            created_at: { type: 'string', format: 'date-time', description: 'Timestamp when the delivery was created' },
+            completed_at: { type: 'string', format: 'date-time', nullable: true, description: 'Timestamp when the delivery was completed (succeeded or failed definitively)' },
+            next_retry_at: { type: 'string', format: 'date-time', nullable: true, description: 'Timestamp for the next scheduled retry attempt (if status is RETRYING)' }
+          }
+        }
+      },
       securitySchemes: {
         ApiKeyAuth: {
           type: 'apiKey',

@@ -110,6 +110,16 @@ A daemon service that monitors specified wallets and smart contracts on the Card
 - `GET /api/blockchain/contracts/:contractAddress/state` - Get contract state
 - `GET /api/blockchain/tokens/:policyId/:assetName` - Get token information
 
+### Deliveries
+- `GET /api/deliveries` - Retrieve historical webhook delivery records
+
+### Health Check
+- `GET /health` - Health status check for the service
+
+## WebSocket Endpoints
+
+See `asyncapi.yaml` in the project root for a detailed specification of WebSocket messages.
+
 ## API Documentation
 
 ### Swagger Documentation
@@ -135,6 +145,45 @@ A daemon service that monitors specified wallets and smart contracts on the Card
 - `GET /api/blockchain/transactions/:txHash` - Get transaction details
 - `GET /api/blockchain/contracts/:contractAddress/state` - Get contract state
 - `GET /api/blockchain/tokens/:policyId/:assetName` - Get token information
+
+#### Deliveries
+*   **Endpoint:** `/api/deliveries`
+*   **Method:** `GET`
+*   **Description:** Retrieve historical webhook delivery records. Supports filtering by `webhookId`, `eventId`, and `status`, as well as pagination (`limit`, `offset`) and sorting (`sortBy`, `sortOrder`).
+*   **Authentication:** Requires API Key (`Bearer` token in `Authorization` header).
+*   **Query Parameters:**
+    *   `webhookId` (uuid, optional)
+    *   `eventId` (uuid, optional)
+    *   `status` (enum, optional: PENDING, IN_PROGRESS, SUCCEEDED, RETRYING, FAILED, MAX_RETRIES_EXCEEDED)
+    *   `limit` (integer, optional, default: 20, max: 100)
+    *   `offset` (integer, optional, default: 0)
+    *   `sortBy` (enum, optional, default: created_at): created_at, completed_at, next_retry_at, attempt_count
+    *   `sortOrder` (enum, optional, default: DESC): ASC, DESC
+*   **Response (Success - 200 OK):**
+    ```json
+    {
+      "data": [
+        // Array of WebhookDelivery objects (schema defined in Swagger/OpenAPI)
+        {
+          "id": "uuid-delivery-1",
+          "webhook_id": "uuid-webhook-1",
+          "event_id": "uuid-event-1",
+          "status": "SUCCEEDED",
+          "attempt_count": 1,
+          "status_code": 200,
+          "response_body": "{\"message\": \"received\"}",
+          "created_at": "2023-10-27T10:00:00.000Z",
+          "completed_at": "2023-10-27T10:00:01.000Z",
+          "next_retry_at": null
+        }
+        // ... more delivery objects
+      ],
+      "totalCount": 150 // Total matching records
+    }
+    ```
+*   **Response (Error - 400 Bad Request):** Invalid query parameters.
+*   **Response (Error - 401 Unauthorized):** Missing or invalid API key.
+*   **Response (Error - 500 Internal Server Error):** Server-side error during processing.
 
 ## Documentation
 

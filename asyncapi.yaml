@@ -1,0 +1,203 @@
+asyncapi: '2.6.0'
+info:
+  title: Cardano Blockchain Scanner WebSocket API
+  version: '1.0.0'
+  description: >
+    Provides real-time streaming of webhook delivery activity.
+    Connect to the WebSocket endpoint to receive messages about webhook attempts, successes, and failures.
+  contact:
+    name: API Support
+    email: support@example.com
+  license:
+    name: MIT
+    url: 'https://opensource.org/licenses/MIT'
+
+servers:
+  production:
+    url: 'wss://your-production-url.com' # TODO: Update with your production WebSocket URL
+    protocol: wss
+    description: Production WebSocket server
+  development:
+    url: 'ws://localhost:{port}'
+    protocol: ws
+    description: Development WebSocket server
+    variables:
+      port:
+        description: Development server port.
+        default: '3000' # Matches the default in src/config/index.ts
+
+defaultContentType: application/json
+
+channels:
+  /: # Represents the single WebSocket connection endpoint
+    description: The main channel for receiving webhook activity updates.
+    subscribe:
+      summary: Receive real-time updates on webhook delivery status.
+      operationId: receiveWebhookActivity
+      message:
+        $ref: '#/components/messages/WebhookActivity'
+
+components:
+  messages:
+    WebhookActivity:
+      name: WebhookActivity
+      title: Webhook Delivery Activity
+      summary: >
+        A message representing the status of a webhook delivery attempt.
+        The specific event type is indicated by the `type` field.
+      payload:
+        $ref: '#/components/schemas/WebhookActivityPayload'
+      x-correlation-id: # Example correlation ID
+        description: Use deliveryId for correlation.
+        location: $message.payload#/deliveryId
+
+  schemas:
+    WebhookActivityPayload:
+      type: object
+      description: Common structure for all webhook activity messages.
+      properties:
+        type:
+          type: string
+          description: >
+            Indicates the specific type of webhook activity.
+          enum:
+            - info # Connection established message
+            - delivery_attempt
+            - delivery_success
+            - delivery_failed # Max retries exceeded
+            - delivery_error # Critical processing error
+      required:
+        - type
+      discriminator: type # Tells tools which field determines the specific schema
+      oneOf: # Define the specific structure based on the 'type' field
+        - $ref: '#/components/schemas/InfoMessage'
+        - $ref: '#/components/schemas/DeliveryAttemptMessage'
+        - $ref: '#/components/schemas/DeliverySuccessMessage'
+        - $ref: '#/components/schemas/DeliveryFailedMessage'
+        - $ref: '#/components/schemas/DeliveryErrorMessage'
+
+    InfoMessage:
+      type: object
+      allOf: # Inherits 'type' property and requirement
+        - $ref: '#/components/schemas/BaseMessage'
+      properties:
+        type:
+          const: info
+        message:
+          type: string
+          description: Informational message (e.g., connection success).
+          example: 'Connected to webhook activity stream'
+      required:
+        - message
+
+    DeliveryAttemptMessage:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/BaseDeliveryMessage'
+      properties:
+        type:
+          const: delivery_attempt
+        eventType:
+          type: string
+          description: The type of the original blockchain event.
+          example: 'transaction_confirmation'
+        url:
+          type: string
+          format: url
+          description: The target URL the webhook is being sent to.
+        attempt:
+          type: integer
+          description: The current attempt number for this delivery.
+          example: 1
+      required:
+        - eventType
+        - url
+        - attempt
+
+    DeliverySuccessMessage:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/BaseDeliveryMessage'
+      properties:
+        type:
+          const: delivery_success
+        statusCode:
+          type: integer
+          description: The HTTP status code received from the webhook endpoint.
+          example: 200
+        response:
+          type: object
+          nullable: true
+          description: The response body received from the webhook endpoint (if any).
+          example: { "status": "received" }
+      required:
+        - statusCode
+
+    DeliveryFailedMessage: # Max Retries Exceeded
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/BaseDeliveryMessage'
+      properties:
+        type:
+          const: delivery_failed
+        statusCode:
+          type: integer
+          nullable: true
+          description: The last HTTP status code received (if any).
+          example: 503
+        response:
+          type: object
+          nullable: true
+          description: The last response body received (if any).
+        reason:
+          type: string
+          description: Reason for the final failure.
+          example: 'Max retries (5) exceeded'
+      required:
+        - reason
+
+    DeliveryErrorMessage: # Processing Error
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/BaseDeliveryMessage'
+      properties:
+        type:
+          const: delivery_error
+        error:
+          type: string
+          description: Description of the processing error that occurred.
+          example: 'Database connection lost'
+      required:
+        - error
+
+    # --- Reusable Base Schemas --- #
+    BaseMessage:
+      type: object
+      properties:
+        type:
+          type: string
+          description: Message type identifier.
+      required:
+       - type
+
+    BaseDeliveryMessage:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/BaseMessage'
+      properties:
+        deliveryId:
+          type: string # Assuming UUID or similar
+          format: uuid
+          description: Unique identifier for the webhook delivery attempt.
+        webhookId:
+          type: string
+          format: uuid
+          description: Identifier of the configured webhook.
+        eventId:
+          type: string
+          format: uuid
+          description: Identifier of the blockchain event triggering the webhook.
+      required:
+        - deliveryId
+        - webhookId
+        - eventId
