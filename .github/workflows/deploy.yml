@@ -103,6 +103,8 @@ jobs:
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
+            echo "Ensuring deployment directory exists..."
+            mkdir -p ${{ env.PROJECT_DIR }}
             cd ${{ env.PROJECT_DIR }}
             echo "Creating .env file..."
             echo "${{ secrets.ENV_FILE_CONTENT }}" > .env
