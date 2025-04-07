@@ -90,6 +90,10 @@ jobs:
     name: Deploy to Hetzner via SSH
     runs-on: ubuntu-latest
     needs: push_to_registry # Depends on the image being pushed
+    # Specify the environment based on the branch
+    environment:
+      name: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
+      # url: Optional deployment URL, uncomment and modify if needed
 
     steps:
       - name: Deploy to Server
