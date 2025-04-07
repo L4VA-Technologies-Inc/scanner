@@ -96,6 +96,9 @@ jobs:
       # url: Optional deployment URL, uncomment and modify if needed
 
     steps:
+      - name: List files in workspace
+        run: ls -la
+
       - name: Copy setup_db.sql to Server
         uses: appleboy/scp-action@master
         with:
