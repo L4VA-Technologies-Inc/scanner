@@ -143,22 +143,16 @@ jobs:
             docker pull ${IMAGE_TAG}
             echo "Image pull complete."
 
-            echo "Updating services with Docker Compose..."
-            # Ensure your docker-compose.yml references the image without a specific tag,
-            # or modify this step to substitute the correct IMAGE_TAG into docker-compose.yml before running 'up'
-            # Example: Assuming docker-compose.yml uses an environment variable like IMAGE_TAG
-            export IMAGE_TAG=${IMAGE_TAG}
-            # Set host port based on branch
-            if [ "${{ github.ref_name }}" == "main" ]; then
-              export APP_HOST_PORT=5000
-            else
-              export APP_HOST_PORT=3000
-            fi
-            echo "Using host port ${APP_HOST_PORT} for branch ${{ github.ref_name }}"
+            echo "Pulling latest images..."
+            docker compose -f docker-compose.yml pull
 
-            docker-compose -f docker-compose.yml up -d --force-recreate --remove-orphans
+            echo "Starting application with Docker Compose..."
+            docker compose -f docker-compose.yml up -d --force-recreate --remove-orphans
             echo "Deployment complete."
 
             echo "Cleaning up unused Docker images..."
-            docker image prune -af
-            echo "Docker cleanup complete."
+            docker image prune -f
+
+            # Optional: Add docker compose down to stop containers if needed before pull/up
+            # echo "Stopping existing containers..."
+            # docker compose -f docker-compose.yml down --remove-orphans
