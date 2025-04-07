@@ -2,22 +2,27 @@ version: '3.8'
 
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    # Use the pre-built image from the registry, tagged by the CI pipeline
+    # The IMAGE_TAG variable should be set in the environment by the deploy script
+    image: ${REGISTRY:-ghcr.io}/${IMAGE_NAME:-${GITHUB_REPOSITORY}}:${IMAGE_TAG:-latest}
     ports:
-      - "3000:3000"
+      # Map host port 5050 to the container's exposed port 3000
+      - "5050:3000"
     environment:
-      - NODE_ENV=production
-      - DATABASE_URL=postgres://postgres:postgres@db:5432/cardano_scanner
-      - JWT_SECRET=${JWT_SECRET}
-      - BLOCKFROST_API_KEY=${BLOCKFROST_API_KEY}
-      - BLOCKFROST_NETWORK=${BLOCKFROST_NETWORK}
+      # Use Docker Compose variable substitution to get values from environment/.env
+      NODE_ENV: ${NODE_ENV:-production}
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      BLOCKFROST_API_KEY: ${BLOCKFROST_API_KEY}
+      BLOCKFROST_NETWORK: ${BLOCKFROST_NETWORK}
     depends_on:
       - db
     volumes:
       - ./logs:/usr/src/app/logs
     restart: unless-stopped
+    # Optional: Uncomment to explicitly load the .env file created by CI
+    # env_file:
+    #  - .env
 
   db:
     image: postgres:14-alpine
