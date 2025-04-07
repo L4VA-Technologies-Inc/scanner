@@ -282,6 +282,17 @@ Once running, you can access:
 - Migration utilities for database schema evolution
 - Connection pooling for efficient database access
 
+## CI/CD Pipeline
+
+- **Provider:** GitHub Actions
+- **Workflow File:** `.github/workflows/deploy.yml`
+- **Triggers:** Push to `main` and `dev` branches.
+- **Jobs:**
+    - `build`: Checks out code, installs Node.js dependencies, builds TypeScript.
+    - `push_to_registry`: Builds Docker image, tags it, pushes to GitHub Container Registry (ghcr.io).
+    - `deploy`: Connects to the Hetzner server via SSH, pulls the latest image, creates `.env` from GitHub Secrets, and restarts the application using `docker-compose`.
+- **Secrets Management:** Sensitive values (Docker registry credentials, SSH keys, environment variables) are stored as GitHub Actions Secrets.
+
 ## Configuration
 
 The service can be configured through environment variables:
