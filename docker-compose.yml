@@ -6,35 +6,18 @@ services:
     # The IMAGE_TAG variable should be set in the environment by the deploy script
     image: ${REGISTRY:-ghcr.io}/${IMAGE_NAME:-${GITHUB_REPOSITORY}}:${IMAGE_TAG:-latest}
     ports:
-      # Map host port 5050 to the container's exposed port 3000
-      - "5050:3000"
+      # Map host port (defined by APP_HOST_PORT env var) to container port 3000
+      - "${APP_HOST_PORT:-3000}:3000" # Default to 3000 if var not set
     environment:
       # Use Docker Compose variable substitution to get values from environment/.env
       NODE_ENV: ${NODE_ENV:-production}
-      DATABASE_URL: ${DATABASE_URL}
+      DATABASE_URL: ${DATABASE_URL} # Ensure this points to HOST DB in .env
       JWT_SECRET: ${JWT_SECRET}
       BLOCKFROST_API_KEY: ${BLOCKFROST_API_KEY}
       BLOCKFROST_NETWORK: ${BLOCKFROST_NETWORK}
-    depends_on:
-      - db
     volumes:
       - ./logs:/usr/src/app/logs
     restart: unless-stopped
     # Optional: Uncomment to explicitly load the .env file created by CI
     # env_file:
     #  - .env
-
-  db:
-    image: postgres:14-alpine
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    environment:
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_USER=postgres
-      - POSTGRES_DB=cardano_scanner
-    ports:
-      - "5432:5432"
-    restart: unless-stopped
-
-volumes:
-  postgres_data:

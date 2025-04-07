@@ -96,7 +96,17 @@ jobs:
       # url: Optional deployment URL, uncomment and modify if needed
 
     steps:
-      - name: Deploy to Server
+      - name: Copy setup_db.sql to Server
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          source: "setup_db.sql"
+          target: "${{ env.PROJECT_DIR }}"
+
+      - name: Deploy to Server and Run DB Setup
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -109,6 +119,16 @@ jobs:
             echo "Creating .env file..."
             echo "${{ secrets.ENV_FILE_CONTENT }}" > .env
             echo ".env file created."
+
+            echo "Running database setup script..."
+            # Extract DATABASE_URL and run psql
+            # Note: This assumes psql is in PATH and setup_db.sql is idempotent or first run
+            export PGPASSWORD=$(echo $DATABASE_URL | awk -F':' '{print $3}' | awk -F'@' '{print $1}')
+            DB_USER=$(echo $DATABASE_URL | awk -F'://' '{print $2}' | awk -F':' '{print $1}')
+            DB_HOST=$(echo $DATABASE_URL | awk -F'@' '{print $2}' | awk -F':' '{print $1}')
+            DB_PORT=$(echo $DATABASE_URL | awk -F':' '{print $4}' | awk -F'/' '{print $1}')
+            DB_NAME=$(echo $DATABASE_URL | awk -F'/' '{print $3}')
+            psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -f setup_db.sql
 
             echo "Logging into Docker registry..."
             echo ${{ secrets.GITHUB_TOKEN }} | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
@@ -128,6 +148,14 @@ jobs:
             # or modify this step to substitute the correct IMAGE_TAG into docker-compose.yml before running 'up'
             # Example: Assuming docker-compose.yml uses an environment variable like IMAGE_TAG
             export IMAGE_TAG=${IMAGE_TAG}
+            # Set host port based on branch
+            if [ "${{ github.ref_name }}" == "main" ]; then
+              export APP_HOST_PORT=5000
+            else
+              export APP_HOST_PORT=3000
+            fi
+            echo "Using host port ${APP_HOST_PORT} for branch ${{ github.ref_name }}"
+
             docker-compose -f docker-compose.yml up -d --force-recreate --remove-orphans
             echo "Deployment complete."
 
