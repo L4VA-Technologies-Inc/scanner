@@ -16,7 +16,7 @@ import http from 'http';
 // Create Express app
 const app = express();
 
-// Apply middleware
+// Apply middleware =)
 app.use(helmet()); // Security headers
 app.use(cors()); // CORS support
 app.use(express.json()); // JSON body parser
